@@ -1,0 +1,114 @@
+##Practical Machine Learning Project
+
+###Introduction: 
+
+For this project, we will be analyzing a given set of exercise activities data to predict the manner the exercise was performed.  
+
+
+###Data Preparation:
+
+Loading the library
+```{r, eval=F}
+library(caret)
+library(AppliedPredictiveModeling)
+library(randomForest)
+library(rpart)
+```
+
+
+Downloading and Reading the data
+
+```{r, cache=TRUE}
+fileurl_training <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+fileurl_test <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+download.file(fileurl_training,destfile = "trainingdata.csv", method = "wininet")
+download.file(fileurl_test,destfile = "testdata.csv", method = "wininet")
+
+
+Training_Raw <- read.csv("trainingdata.csv", na.strings = list("#DIV/0!","","NA"))
+Test_Raw <- read.csv("testdata.csv",  na.strings = list("#DIV/0!","","NA"))
+```
+
+
+###Cleaning the data
+
+Remove columns with high amount of NA from the dataset
+
+```{r, cache =TRUE}
+Data_NA <- sapply(Training_Raw, function(x) mean(is.na(x))) > 0.95
+Training_Raw <- Training_Raw[, Data_NA==F]
+```
+
+Remove first 7 columns as they are likely to be irrelevant for our model prediction.   These columns are irrelevant and will not contribute to the model prediction
+
+
+```{r, echo=TRUE}
+Training_Raw <- Training_Raw[, -(1:7)]
+Test_Raw <- Test_Raw[, -(1:7)]
+```
+
+###Slice the data into the training set and the testing set
+```{r, cache =TRUE}
+set.seed(1000) 
+inTrain <- createDataPartition(Training_Raw$classe, p=0.70, list=FALSE)
+training <- Training_Raw[inTrain,]
+testing <- Training_Raw[-inTrain,]
+```
+
+
+
+###Model Prediction
+
+####Prediction with Trees Model
+
+```{r, cache =TRUE}
+modFit_tree <- train(classe ~., method ="rpart", data=training)
+print(modFit_tree$finalModel)
+```
+
+Evaluate the performance of the Prediction with Trees Model on the validation data set
+
+```{r, cache =TRUE}
+predict_tree <- predict(modFit_tree, testing)
+confusionMatrix(testing$classe, predict_tree)
+
+Accuracy_tree <- postResample(predict_tree, testing$classe)[1]
+Error_tree <- 1 - as.numeric(confusionMatrix(testing$classe, predict_tree)$overall[1])
+```
+
+For Prediction with Trees model, the estimated accuracy is `r Accuracy_tree` and estimated out-of-sample error is `r Error_tree`.
+
+####Prediction with Radom Forest Model
+
+Random Forest with 4-fold cross validation
+```{r, cache =TRUE}
+Control_RF <- trainControl(method="cv", 4)
+modFit_RF <- train(classe ~ ., data=training, method="rf", trControl=Control_RF, ntree=200)
+modFit_RF
+```
+
+
+
+Evaluate the performance of the Random Forest Model on the validation data set
+
+```{r, cache =TRUE}
+predict_RF <- predict(modFit_RF, testing)
+confusionMatrix(testing$classe, predict_RF)
+
+Accuracy_RF <- postResample(predict_RF, testing$classe)[1]
+Error_RF <- 1 - as.numeric(confusionMatrix(testing$classe, predict_RF)$overall[1])
+```
+
+For Random Forest model, the estimated accuracy is `r Accuracy_RF` and estimated out-of-sample error is `r Error_RF`.
+
+
+Based on the estimated accurary and estimated out-of-sample error calculation, Random Forest model is a better model than the Prediction with Trees model.
+
+
+###Prediction of Test Data Set
+
+```{r, cache =TRUE}
+result_RF <- predict(modFit_RF, Test_Raw[, -length(names(Test_Raw))])
+result_RF
+```
